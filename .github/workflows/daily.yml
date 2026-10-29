@@ -2,8 +2,8 @@ name: 每日刷新面板
 
 on:
   schedule:
-    # 19:00 北京时间（UTC 11:00），收盘后数据基本已入库
-    - cron: "0 11 * * 1-5"
+    # 19:30 北京时间（UTC 11:30），收盘后数据基本已入库
+    - cron: "30 11 * * 1-5"
   workflow_dispatch:
 
 permissions:
