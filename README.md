@@ -94,6 +94,26 @@ python -m cyclical --csv output/cyclical.csv
 | `--min-cap` | 最小市值（亿），默认 50 |
 | `--html` / `--csv` | 输出面板 / 表格 |
 
+## 自动更新（GitHub Actions）
+
+仓库带两个工作流：
+
+| 工作流 | 频率 | 做什么 |
+|---|---|---|
+| `daily.yml` | 工作日 19:00（北京时间） | 拉当天快照 → 重算分位 → 重建面板 → 部署到 Pages |
+| `monthly.yml` | 每月 1 日 | 刷新财务、主营业务、并入月度估值样本 → 提交回仓库 |
+
+**日常更新不提交数据**——面板 parquet 有 6.7 MB，每天重写等于每天产生一个新 blob，仓库一年会涨 1.6 GB。所以日更只部署网页，数据每月提交一次。
+
+启用步骤：
+
+1. **加 Token**：Settings → Secrets and variables → Actions → New repository secret
+   名称 `TUSHARE_TOKEN`，值是你的 Tushare Pro token
+2. **开 Pages**：Settings → Pages → Source 选 **GitHub Actions**
+3. 手动跑一次：Actions → 每日刷新面板 → Run workflow
+
+之后每个交易日收盘后自动更新，访问 `https://<用户名>.github.io/a-share-cyclical-scan/`。
+
 ## 数据
 
 `data/` 下 4 个 parquet，共约 10 MB，直接随仓库提供：

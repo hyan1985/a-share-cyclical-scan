@@ -203,6 +203,9 @@ def scan(data: Optional[dict] = None, industries: Optional[set] = None,
                     else:
                         row.earn_pos = round(pos, 2)
                         row.profit_yi = round(npl / 1e8, 1)
+        if row.main_business:
+            from .company import looks_stale
+            row.stale = looks_stale(row.main_business, row.industry)
         q = quality.get(code) or {}
         row.gross_margin, row.net_margin_vol = q.get("gm"), q.get("nm_vol")
         row.debt_ratio, row.ocf_to_profit = q.get("debt"), q.get("ocf")
