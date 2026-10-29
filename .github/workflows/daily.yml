@@ -65,3 +65,5 @@ jobs:
         uses: actions/deploy-pages@v4
 
 # 部署说明：daily.yml 只负责刷新与部署，数据提交由 monthly.yml 完成。
+
+# 触发部署 2026-10-29T14:29:25Z
