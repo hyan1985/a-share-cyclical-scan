@@ -47,6 +47,9 @@ jobs:
           ls -lh docs/index.html
 
       - uses: actions/configure-pages@v5
+        with:
+          # 让 action 自己启用 Pages（需要 pages: write 权限）
+          enablement: true
       - uses: actions/upload-pages-artifact@v3
         with:
           path: docs
