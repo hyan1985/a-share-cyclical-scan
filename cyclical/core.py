@@ -231,9 +231,9 @@ def summarize(rows: List[CycRow]) -> str:
 
 
 def format_table(rows: List[CycRow], limit: int = 40) -> str:
-    head = (f"{'代码':<11}{'名称':<9}{'行业':<7}{'链条':<7}"
-            f"{'PE':>7}{'PE分位':>7}{'PB':>6}{'PB分位':>7}"
-            f"{'盈利位置':>9}{'正常化PE':>9}{'毛利':>5}{'波动':>5}{'负债':>5}{'现金':>6}  判断")
+    head = (f"{'代码':<11}{'名称':<9}{'行业':<7}{'链条':<7}{'判断':<18}"
+            f"{'PB':>6}{'PB分位':>7}{'盈利位置':>9}{'正常化PE':>9}"
+            f"{'PE':>7}{'PE分位':>7}{'毛利':>5}{'波动':>5}{'负债':>5}{'现金':>6}")
     lines = [head, "-" * 122]
 
     def f(v, nd=2):
@@ -241,9 +241,10 @@ def format_table(rows: List[CycRow], limit: int = 40) -> str:
 
     for r in rows[:limit]:
         lines.append(
-            f"{r.code:<11}{r.name[:8]:<9}{r.industry[:6]:<7}{r.chain[:6]:<7}"
-            f"{f(r.pe):>7}{f(r.pe_pct, 0):>7}{f(r.pb):>6}{f(r.pb_pct, 0):>7}"
-            f"{f(r.earn_pos):>9}{f(r.norm_pe):>9}"
+            f"{r.code:<11}{r.name[:8]:<9}{r.industry[:6]:<7}"
+            f"{(r.chain or '-')[:6]:<7}{r.tag:<18}"
+            f"{f(r.pb):>6}{f(r.pb_pct, 0):>7}{f(r.earn_pos):>9}{f(r.norm_pe):>9}"
+            f"{f(r.pe):>7}{f(r.pe_pct, 0):>7}"
             f"{f(r.gross_margin, 0):>5}{f(r.net_margin_vol, 1):>5}"
-            f"{f(r.debt_ratio, 0):>5}{f(r.ocf_to_profit):>6}  {r.tag}")
+            f"{f(r.debt_ratio, 0):>5}{f(r.ocf_to_profit):>6}")
     return "\n".join(lines)
