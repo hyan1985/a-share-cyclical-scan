@@ -1,15 +1,32 @@
 # A股周期行业估值扫描
 
-用 **PB 分位 + 盈利位置** 判断周期股贵不贵，而不是 PE。
+> **用 PB 分位 + 盈利位置判断周期股贵不贵，而不是 PE。**
 
-单文件脚本，自带数据，不需要 Tushare token 就能跑。
+[![部署](https://github.com/hyan1985/a-share-cyclical-scan/actions/workflows/daily.yml/badge.svg)](https://github.com/hyan1985/a-share-cyclical-scan/actions/workflows/daily.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/)
+
+**🔗 在线面板：[hyan1985.github.io/a-share-cyclical-scan](https://hyan1985.github.io/a-share-cyclical-scan/)**
+
+每个交易日 19:30（北京时间）自动更新。覆盖 1098 只周期股、37 个周期行业。
+
+[![面板截图](docs/preview.png)](https://hyan1985.github.io/a-share-cyclical-scan/)
+
+---
+
+## 一分钟上手
 
 ```bash
+git clone https://github.com/hyan1985/a-share-cyclical-scan.git
+cd a-share-cyclical-scan
 pip install pandas pyarrow
-python -m cyclical -n 20
+
+python -m cyclical -i 铝 -n 20
 ```
 
-![面板](docs/preview.png)
+**不需要 Tushare token**——10 MB 数据随仓库提供。
+
+---
 
 ## 为什么不用 PE
 
@@ -21,9 +38,19 @@ python -m cyclical -n 20
 | PB | 2.76 | **94%** | 十年最贵 |
 | 盈利位置 | 2.69 | — | 盈利是中位数的 2.7 倍 |
 
-**同一只股票，PE 说便宜，PB 说贵。** 因为 PE 的分母（盈利）在周期顶部，而 PB 的分母（净资产）不会。
+**同一只股票，PE 说便宜，PB 说贵。**
 
-用中位盈利算，它的正常化 PE 是 **74.3 倍**，而不是 9.45。
+因为 PE 的分母（盈利）在周期顶部，而 PB 的分母（净资产）不会。用中位盈利算，它的**正常化 PE 是 74.3 倍**，而不是 9.45。
+
+水运板块最能说明问题——PE 分位最低的三只，PB 分位最高：
+
+| 名称 | PE | PE分位 | PB | PB分位 | 判断 |
+|---|---:|---:|---:|---:|---|
+| 中远海特 | 10.19 | **2%** | 1.72 | **98%** | 周期顶 |
+| 招商轮船 | 9.45 | **8%** | 2.76 | **94%** | 周期顶 |
+| 中远海能 | 11.62 | **8%** | 1.99 | **83%** | 周期顶 |
+
+---
 
 ## 三个指标各管一件事
 
@@ -35,9 +62,12 @@ python -m cyclical -n 20
 
 盈利位置用**扣非净利润**而不是 EPS：EPS 会被股本变动（增发、回购、转增）扭曲，但经营本身没变。
 
-## 分类
+> 换用扣非净利润后，招商轮船的盈利位置从 1.80 变成 2.69，正常化 PE 从 42.4 变成 74.3——
+> 之前的 EPS 口径低估了周期顶部的严重程度。
 
-按 PB 分位和盈利位置分成五类：
+---
+
+## 五类判断
 
 ```
 周期顶（PB贵+盈利高）   PB 分位 ≥70 且 盈利位置 ≥1.5
@@ -49,20 +79,29 @@ PB 便宜 / PB 偏贵       单看 PB 分位
 
 **「历史不可比」很重要**：重组、借壳、连年亏损的公司，中位利润接近 0，任何分位计算都会得出天文数字。这类不给结论。
 
+比如宏桥控股——重组前是壳公司，算出「盈利位置 147 倍、正常化 PE 1564 倍」全是假象。现在直接标为不可比。
+
+---
+
 ## 产业链分类
 
 面板里的「链条」列按**主营业务原文**的关键词判定（上游资源 / 中游冶炼 / 下游加工 / 一体化），鼠标悬停可看原文。
 
-这个维度解释了为什么同一行业内部估值分位会反向——铝行业实测：
+这个维度解释了为什么同一行业内部估值分位会反向。铝行业实测：
 
 | 链条 | 只数 | PB分位中位 | 毛利率 | 盈利波动 |
 |---|---:|---:|---:|---:|
-| 一体化（云铝、南山、中铝） | 6 | **64%** | 22% | 5.2 |
-| 下游加工（华峰、明泰、亚太） | 13 | **23%** | 10% | 2.7 |
+| 一体化（云铝、南山、中铝、神火） | 6 | **64%** | 22% | 5.2 |
+| 下游加工（华峰、明泰、亚太、创新新材） | 13 | **23%** | 10% | 2.7 |
 
-上游在商品涨价时先受益，下游的毛利同时被挤压，两边估值分位天然反向。
+**上游在商品涨价时先受益，下游的毛利同时被挤压，两边估值分位天然反向。**
 
-> ⚠️ 但**全市场**看这个规律不明显（上游 42 / 下游 39 / 一体化 37）。产业链位置只在**同一行业内**可比，不能当全市场因子用。
+> ⚠️ 但全市场看这个规律不明显（上游 42 / 下游 39 / 一体化 37）。
+> 产业链位置只在**同一行业内**可比，不能当全市场因子用。
+
+面板里「链条」后面的 `!` 表示**主营业务描述和行业对不上**——多半是借壳/重组后数据没更新。例如天山铝业的描述至今还写着「泵及控制设备、风机」。
+
+---
 
 ## 用法
 
@@ -84,8 +123,6 @@ python -m cyclical --html output/cyclical.html
 python -m cyclical --csv output/cyclical.csv
 ```
 
-参数：
-
 | 参数 | 说明 |
 |---|---|
 | `-i, --industry` | 行业名，逗号分隔 |
@@ -94,29 +131,34 @@ python -m cyclical --csv output/cyclical.csv
 | `--min-cap` | 最小市值（亿），默认 50 |
 | `--html` / `--csv` | 输出面板 / 表格 |
 
-## 自动更新（GitHub Actions）
+**面板交互**：行业下拉 + 代码/名称搜索 + 标签筛选（三者可叠加），点表头排序。
 
-仓库带两个工作流：
+---
 
-| 工作流 | 频率 | 做什么 |
-|---|---|---|
-| `daily.yml` | 工作日 19:00（北京时间） | 拉当天快照 → 重算分位 → 重建面板 → 部署到 Pages |
-| `monthly.yml` | 每月 1 日 | 刷新财务、主营业务、并入月度估值样本 → 提交回仓库 |
+## 自动更新
 
-**日常更新不提交数据**——面板 parquet 有 6.7 MB，每天重写等于每天产生一个新 blob，仓库一年会涨 1.6 GB。所以日更只部署网页，数据每月提交一次。
+[![每日刷新](https://github.com/hyan1985/a-share-cyclical-scan/actions/workflows/daily.yml/badge.svg)](https://github.com/hyan1985/a-share-cyclical-scan/actions/workflows/daily.yml)
+[![每月更新](https://github.com/hyan1985/a-share-cyclical-scan/actions/workflows/monthly.yml/badge.svg)](https://github.com/hyan1985/a-share-cyclical-scan/actions/workflows/monthly.yml)
 
-启用步骤：
+| 工作流 | 频率 | 做什么 | 提交数据 |
+|---|---|---|---|
+| [`daily.yml`](.github/workflows/daily.yml) | 工作日 **19:30**（北京时间） | 拉当天快照 → 重算分位 → 重建面板 → 部署 Pages | ❌ |
+| [`monthly.yml`](.github/workflows/monthly.yml) | 每月 1 日 | 刷新财务、主营业务，并入月度估值样本 | ✅ |
 
-1. **加 Token**：Settings → Secrets and variables → Actions → New repository secret
-   名称 `TUSHARE_TOKEN`，值是你的 Tushare Pro token
-2. **开 Pages**：Settings → Pages → Source 选 **GitHub Actions**
-3. 手动跑一次：Actions → 每日刷新面板 → Run workflow
+**日更为什么不提交数据**：面板 parquet 有 6.7 MB，每天重写等于每天产生一个新 blob，仓库一年会涨 1.6 GB。所以日更只部署网页，数据每月提交一次（每年约 80 MB）。
 
-之后每个交易日收盘后自动更新，访问 `https://<用户名>.github.io/a-share-cyclical-scan/`。
+**自己搭一份**：
+
+1. Settings → Secrets and variables → Actions → New repository secret
+   名称 `TUSHARE_TOKEN`，值是你的 [Tushare Pro](https://tushare.pro/) token
+2. Settings → Pages → Source 选 **GitHub Actions**
+3. Actions → 每日刷新面板 → Run workflow
+
+---
 
 ## 数据
 
-`data/` 下 4 个 parquet，共约 10 MB，直接随仓库提供：
+`data/` 下 4 个 parquet，共约 10 MB：
 
 | 文件 | 内容 |
 |---|---|
@@ -125,20 +167,32 @@ python -m cyclical --csv output/cyclical.csv
 | `financials.parquet` | 年报财务（扣非净利润、毛利率、负债率、每股经营现金流） |
 | `company.parquet` | 主营业务原文 + 产业链标签 |
 
-数据截至 **2026-10-29**，来源 Tushare Pro。
+数据截至 **2026-10-29**，来源 [Tushare Pro](https://tushare.pro/)。
+
+手动刷新：
+
+```bash
+export TUSHARE_TOKEN=你的token
+python tools/refresh.py --token $TUSHARE_TOKEN            # 只更新快照和面板
+python tools/refresh.py --token $TUSHARE_TOKEN --full     # 连财务和主营业务一起
+```
+
+---
 
 ## 已知局限
 
 1. **PB 分位不能跨公司比**——它是纵向的（相对自己历史）。铝行业里华峰 1% 和云铝 74% 不矛盾，原因是产业链位置不同。
 2. **中位利润会漂移**——扩产型公司的「中位」天然偏低，会显得盈利位置高。
-3. **主营业务数据可能滞后**——借壳/重组后 Tushare 不一定更新。天山铝业的描述至今还写着「泵及控制设备」，面板会标 `!`。
+3. **主营业务数据可能滞后**——借壳/重组后 Tushare 不一定更新，面板会标 `!`。
 4. **不含负债结构和现金流趋势**——只给了当期负债率和现金流/利润两个快照。
 5. **不给买卖建议**——工具给的是「位置」，不是「时点」。周期顶不代表马上下跌，它可能在高位待两年。
 
+---
+
 ## 免责声明
 
-仅用于数据展示与研究，不构成任何投资建议。数据来自公开接口，可能存在错误或滞后。
+仅用于数据展示与研究，不构成任何投资建议。数据来自公开接口，可能存在错误或滞后。据此操作，风险自负。
 
 ## License
 
-MIT
+[MIT](LICENSE)
