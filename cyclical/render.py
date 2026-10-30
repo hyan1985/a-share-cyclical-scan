@@ -178,6 +178,7 @@ def render_html(rows: List[CycRow], as_of: str) -> str:
             f'<td class="mono" data-v="{r.pb if r.pb is not None else ""}">{_fmt(r.pb)}</td>'
             f'<td class="mono" data-v="{r.pb_pct if r.pb_pct is not None else ""}">{_fmt(r.pb_pct, 0)}</td>'
             f'<td class="mono" title="{html.escape(ptitle)}" data-v="{r.earn_pos if r.earn_pos is not None else ""}">{_fmt(r.earn_pos)}{pmark}</td>'
+            f'<td class="mono" title="{html.escape(ptitle)}" data-v="{r.earn_pos_5y if r.earn_pos_5y is not None else ""}">{_fmt(r.earn_pos_5y)}</td>'
             f'<td class="mono" title="{html.escape(ptitle)}" data-v="{r.norm_pe if r.norm_pe is not None else ""}">{_fmt(r.norm_pe)}{pmark}</td>'
             f'<td class="mono" data-v="{r.dy if r.dy is not None else ""}">{_fmt(r.dy)}</td>'
             f'<td class="mono" data-v="{r.gross_margin if r.gross_margin is not None else ""}">{_fmt(r.gross_margin, 0)}</td>'
@@ -208,7 +209,7 @@ def render_html(rows: List[CycRow], as_of: str) -> str:
     <thead><tr>
       <th>代码</th><th>名称</th><th>行业</th><th>链条</th><th>判断</th>
       <th>PE</th><th>PE分位</th><th>PB</th><th>PB分位</th>
-      <th>盈利位置</th><th>正常化PE</th><th>股息率</th>
+      <th>盈利位置(10年)</th><th>盈利位置(5年)</th><th>正常化PE</th><th>股息率</th>
       <th>毛利率</th><th>盈利波动</th><th>负债率</th><th>现金流</th><th>利润率变化</th>
       <th>市值(亿)</th>
     </tr></thead>
@@ -228,6 +229,11 @@ def render_html(rows: List[CycRow], as_of: str) -> str:
     <b>链条</b>（上游资源 / 中游冶炼 / 下游加工 / 一体化）按主营业务原文关键词判定，
     把鼠标放在链条上能看到原文。<span class="warn">!</span> 表示描述与行业对不上，
     多半是借壳或重组后数据没更新（例如天山铝业的主营业务仍写着"泵及控制设备"）。<br>
+    <br>
+    <b>盈利位置(10年) vs (5年)</b>：两个差得越多，说明行业结构变了。
+    电解铝 2017 年产能封顶后利润中枢上移，用 10 年中位（含 2015-2017 的低利润）
+    会把合理利润说成「周期顶」：中铝 6.19→2.63、天山 4.14→2.10，
+    而铝加工只差 0.4~0.6。工具不知道任何行业政策，只能把这个差距摆出来。<br>
     <br>
     <b style="color:#e8a33d">!</b> 跟在「盈利位置」或「正常化 PE」后面，表示这两个数不可信——
     中位利润不足 1 亿（比率会被放大）、10 年内亏损 3 年以上（中位不可靠）、
