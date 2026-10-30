@@ -60,6 +60,8 @@ class CycRow:
     nm_shift: Optional[float] = None
     loss_years: Optional[int] = None
     profit_cv: Optional[float] = None
+    cv_vs_industry: Optional[float] = None
+    median_rel_se: Optional[float] = None
     profit_reliable: bool = True
     profit_note: str = ""
     market_cap_yi: Optional[float] = None
@@ -230,9 +232,12 @@ def scan(data: Optional[dict] = None, industries: Optional[set] = None,
         row.nm_shift = q.get("nm_shift")
         row.loss_years = q.get("loss_years")
         row.profit_cv = q.get("profit_cv")
-        if row.profit_cv is not None and row.profit_cv > 2:
+        if row.profit_cv is not None and row.years:
+            row.median_rel_se = round(1.25 * row.profit_cv / (row.years ** 0.5), 2)
+        if row.median_rel_se is not None and row.median_rel_se > 0.6:
             row.profit_reliable = False
-            row.profit_note = f"盈利年际波动过大（变异系数 {row.profit_cv:.1f}），中位不可靠"
+            row.profit_note = (f"中位数相对标准误 {row.median_rel_se:.0%}"
+                               f"（样本 {row.years} 年），中位不可靠")
         elif row.loss_years is not None and row.loss_years >= 5:
             row.profit_reliable = False
             row.profit_note = f"十年里 {row.loss_years} 年扣非亏损，中位不可靠"
