@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional
 
+import numpy as np
 import pandas as pd
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
@@ -86,6 +87,8 @@ def load_data(data_dir: Optional[Path] = None) -> dict:
         "panel": pd.read_parquet(d / "valuation_panel.parquet"),
         "snapshot": pd.read_parquet(d / "snapshot.parquet"),
         "financials": pd.read_parquet(d / "financials.parquet"),
+        "fina_quarterly": (pd.read_parquet(d / "fina_quarterly.parquet")
+                           if (d / "fina_quarterly.parquet").exists() else pd.DataFrame()),
         "company": pd.read_parquet(d / "company.parquet"),
     }
 
@@ -96,6 +99,27 @@ def cyclical_industries(snapshot: pd.DataFrame) -> set:
         if any(w in str(ind) for w in CYCLICAL_WORDS):
             out.add(str(ind))
     return out
+
+
+def ttm_profit(fin_q):
+    """按季报算滚动 12 个月扣非净利润（累计口径还原）。"""
+    if fin_q is None or fin_q.empty:
+        return pd.DataFrame()
+    d = fin_q.copy()
+    d["end_date"] = d["end_date"].astype(str)
+    d["profit_dedt"] = pd.to_numeric(d["profit_dedt"], errors="coerce")
+    d = d.dropna(subset=["profit_dedt"])
+    d["year"] = d["end_date"].str[:4].astype(int)
+    d["md"] = d["end_date"].str[4:]
+    ly = d[["ts_code", "end_date", "profit_dedt", "year", "md"]].copy()
+    ly["year"] = ly["year"] + 1
+    ps = ly.rename(columns={"profit_dedt": "p_same_prev"})
+    pf = ly[ly["md"] == "1231"].rename(columns={"profit_dedt": "p_fy_prev"})
+    m = d.merge(ps[["ts_code", "year", "md", "p_same_prev"]], on=["ts_code", "year", "md"], how="left")
+    m = m.merge(pf[["ts_code", "year", "p_fy_prev"]], on=["ts_code", "year"], how="left")
+    m["profit_dedt"] = np.where(m["md"] == "1231", m["profit_dedt"],
+                                m["profit_dedt"] + m["p_fy_prev"] - m["p_same_prev"])
+    return m.dropna(subset=["profit_dedt"])[["ts_code", "end_date", "profit_dedt"]]
 
 
 def _quality(fin: pd.DataFrame) -> dict:
@@ -172,7 +196,10 @@ def scan(data: Optional[dict] = None, industries: Optional[set] = None,
     pe_panel = panel.pivot_table(index="trade_date", columns="ts_code", values="pe_ttm")
 
     # 盈利历史：用扣非净利润而不是 EPS（EPS 会被股本变动扭曲）
-    fh = fin.dropna(subset=["profit_dedt"])
+    fin_q = data.get("fina_quarterly")
+    fh = ttm_profit(fin_q)
+    if fh is None or fh.empty:
+        fh = fin.dropna(subset=["profit_dedt"])
     g = fh.sort_values("end_date").groupby("ts_code")
     p_med, p_last, p_n = (g["profit_dedt"].median(), g["profit_dedt"].last(),
                           g["profit_dedt"].count())
