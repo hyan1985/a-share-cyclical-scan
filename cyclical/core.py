@@ -59,6 +59,7 @@ class CycRow:
     ocf_to_profit: Optional[float] = None
     nm_shift: Optional[float] = None
     loss_years: Optional[int] = None
+    profit_cv: Optional[float] = None
     profit_reliable: bool = True
     profit_note: str = ""
     market_cap_yi: Optional[float] = None
@@ -109,7 +110,11 @@ def _quality(fin: pd.DataFrame) -> dict:
             e = float(eps.iloc[-1])
             if e > 0.01:
                 ratio = round(float(ocf.iloc[-1]) / e, 2)
-        loss_years = int((pd.to_numeric(g["profit_dedt"], errors="coerce") < 0).sum())
+        _pf = pd.to_numeric(g["profit_dedt"], errors="coerce").dropna()
+        loss_years = int((_pf < 0).sum())
+        _med = float(_pf.median()) if len(_pf) else 0.0
+        _sd = float(_pf.std()) if len(_pf) >= 5 else None
+        profit_cv = round(_sd / abs(_med), 2) if (_sd is not None and abs(_med) > 0) else None
         nm_shift = None
         if len(nm) >= 4:
             nm_shift = round(float(nm.tail(3).median()) - float(nm.median()), 1)
@@ -120,6 +125,7 @@ def _quality(fin: pd.DataFrame) -> dict:
             "ocf": ratio,
             "nm_shift": nm_shift,
             "loss_years": loss_years,
+            "profit_cv": profit_cv,
         }
     return q
 
@@ -223,15 +229,16 @@ def scan(data: Optional[dict] = None, industries: Optional[set] = None,
         row.debt_ratio, row.ocf_to_profit = q.get("debt"), q.get("ocf")
         row.nm_shift = q.get("nm_shift")
         row.loss_years = q.get("loss_years")
-        if row.profit_med_yi is not None and row.profit_med_yi < 1:
+        row.profit_cv = q.get("profit_cv")
+        if row.profit_cv is not None and row.profit_cv > 2:
             row.profit_reliable = False
-            row.profit_note = "中位利润不足 1 亿，比率会被放大"
-        elif row.loss_years is not None and row.loss_years >= 3:
+            row.profit_note = f"盈利年际波动过大（变异系数 {row.profit_cv:.1f}），中位不可靠"
+        elif row.loss_years is not None and row.loss_years >= 5:
             row.profit_reliable = False
-            row.profit_note = "10 年内亏损多年，中位不可靠"
-        elif row.earn_pos is not None and abs(row.earn_pos) > 5:
+            row.profit_note = f"十年里 {row.loss_years} 年扣非亏损，中位不可靠"
+        elif row.earn_pos is not None and abs(row.earn_pos) > 10:
             row.profit_reliable = False
-            row.profit_note = "盈利位置超过 5 倍，可能是基数问题"
+            row.profit_note = "盈利位置超过 10 倍，基数失真"
         row.tag = _tag(row)
         out.append(row)
     return out
