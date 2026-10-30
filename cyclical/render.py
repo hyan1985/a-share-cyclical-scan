@@ -71,6 +71,7 @@ border:1px solid var(--line);color:var(--muted);font-size:12.5px;line-height:1.9
 JS = """
 const chips=[...document.querySelectorAll('.chip')];
 const sel=document.getElementById('ind');
+const brd=document.getElementById('brd');
 const box=document.getElementById('q');
 const cnt=document.getElementById('cnt');
 let active=new Set();
@@ -80,9 +81,10 @@ function apply(){
   document.querySelectorAll('tbody tr').forEach(r=>{
     const okTag=!active.size||active.has(r.dataset.tag);
     const okInd=!sel.value||r.dataset.ind===sel.value;
+    const okBrd=!brd.value||r.dataset.brd===brd.value;
     const q=box.value.trim().toLowerCase();
     const okQ=!q||r.dataset.key.toLowerCase().includes(q);
-    const ok=okTag&&okInd&&okQ;
+    const ok=okTag&&okInd&&okBrd&&okQ;
     r.style.display=ok?'':'none';
     if(ok)shown++;
   });
@@ -102,6 +104,7 @@ chips.forEach(c=>c.onclick=()=>{
   apply();
 });
 sel.onchange=apply;
+brd.onchange=apply;
 box.oninput=apply;
 
 document.querySelectorAll('thead th').forEach((th,i)=>{
@@ -133,6 +136,23 @@ def render_html(rows: List[CycRow], as_of: str) -> str:
                      f'<span class="{cls} tag">{html.escape(tag)}</span>'
                      f'<span class="n">{n}</span></div>')
 
+    def board(code: str) -> str:
+        """按代码前缀分板块。"""
+        c = code[:3]
+        if c in ("600", "601", "603", "605"):
+            return "沪市主板"
+        if c in ("000", "001", "002", "003"):
+            return "深市主板"
+        if c in ("300", "301"):
+            return "创业板"
+        if c == "688":
+            return "科创板"
+        return "北交所"
+
+    boards = sorted({board(r.code) for r in rows})
+    bopts = ['<option value="">全部板块</option>'] + [
+        f'<option value="{b}">{b}（{sum(1 for r in rows if board(r.code) == b)}）</option>'
+        for b in boards]
     inds = sorted({r.industry for r in rows})
     opts = ['<option value="">全部行业</option>'] + [
         f'<option value="{html.escape(i)}">{html.escape(i)}（{sum(1 for r in rows if r.industry == i)}）</option>'
@@ -146,7 +166,7 @@ def render_html(rows: List[CycRow], as_of: str) -> str:
         pmark = "" if r.profit_reliable else warn
         ptitle = "" if r.profit_reliable else r.profit_note
         body.append(
-            f'<tr data-tag="{html.escape(r.tag)}" data-ind="{html.escape(r.industry)}" '
+            f'<tr data-tag="{html.escape(r.tag)}" data-ind="{html.escape(r.industry)}" data-brd="{board(r.code)}" '
             f'data-key="{html.escape(r.code + r.name)}">'
             f'<td class="mono">{r.code}</td>'
             f'<td class="name">{html.escape(r.name)}</td>'
@@ -179,6 +199,7 @@ def render_html(rows: List[CycRow], as_of: str) -> str:
 <div class="wrap">
   <div class="bar">
     <select id="ind">{''.join(opts)}</select>
+    <select id="brd">{''.join(bopts)}</select>
     <input id="q" placeholder="搜代码或名称…">
     <span class="count" id="cnt"></span>
   </div>
