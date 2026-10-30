@@ -53,6 +53,8 @@ class CycRow:
     profit_med_yi: Optional[float] = None
     earn_pos: Optional[float] = None
     norm_pe: Optional[float] = None
+    earn_pos_5y: Optional[float] = None
+    norm_pe_5y: Optional[float] = None
     years: Optional[int] = None
     gross_margin: Optional[float] = None
     net_margin_vol: Optional[float] = None
@@ -203,6 +205,7 @@ def scan(data: Optional[dict] = None, industries: Optional[set] = None,
     g = fh.sort_values("end_date").groupby("ts_code")
     p_med, p_last, p_n = (g["profit_dedt"].median(), g["profit_dedt"].last(),
                           g["profit_dedt"].count())
+    p_med5 = g["profit_dedt"].apply(lambda x: x.tail(20).median())
     quality = _quality(fin)
 
     co_map, biz = {}, {}
@@ -241,6 +244,13 @@ def scan(data: Optional[dict] = None, industries: Optional[set] = None,
             if med == med and med <= 0:
                 row.comparable = False
             elif med == med and row.market_cap_yi:
+                if code in p_med5.index:
+                    m5 = float(p_med5[code])
+                    if m5 == m5 and m5 > 0:
+                        row.norm_pe_5y = round(row.market_cap_yi * 1e8 / m5, 1)
+                        nl5 = float(p_last.get(code, float("nan")))
+                        if nl5 == nl5:
+                            row.earn_pos_5y = round(nl5 / m5, 2)
                 row.norm_pe = round(row.market_cap_yi * 1e8 / med, 1)
                 npl = float(p_last.get(code, float("nan")))
                 if npl == npl:
