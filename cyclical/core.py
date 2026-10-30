@@ -58,6 +58,9 @@ class CycRow:
     debt_ratio: Optional[float] = None
     ocf_to_profit: Optional[float] = None
     nm_shift: Optional[float] = None
+    loss_years: Optional[int] = None
+    profit_reliable: bool = True
+    profit_note: str = ""
     market_cap_yi: Optional[float] = None
     comparable: bool = True
     tag: str = ""
@@ -106,6 +109,7 @@ def _quality(fin: pd.DataFrame) -> dict:
             e = float(eps.iloc[-1])
             if e > 0.01:
                 ratio = round(float(ocf.iloc[-1]) / e, 2)
+        loss_years = int((pd.to_numeric(g["profit_dedt"], errors="coerce") < 0).sum())
         nm_shift = None
         if len(nm) >= 4:
             nm_shift = round(float(nm.tail(3).median()) - float(nm.median()), 1)
@@ -115,6 +119,7 @@ def _quality(fin: pd.DataFrame) -> dict:
             "debt": round(float(da.iloc[-1]), 1) if len(da) else None,
             "ocf": ratio,
             "nm_shift": nm_shift,
+            "loss_years": loss_years,
         }
     return q
 
@@ -128,6 +133,8 @@ def _tag(r: CycRow) -> str:
     pos = r.earn_pos
     high_earn = pos is not None and pos >= 1.5
     low_earn = pos is not None and pos <= 0.7
+    if not r.profit_reliable:
+        high_earn = low_earn = False
     if high_pb and high_earn:
         return TAG_TOP
     if low_pb and low_earn:
@@ -215,6 +222,16 @@ def scan(data: Optional[dict] = None, industries: Optional[set] = None,
         row.gross_margin, row.net_margin_vol = q.get("gm"), q.get("nm_vol")
         row.debt_ratio, row.ocf_to_profit = q.get("debt"), q.get("ocf")
         row.nm_shift = q.get("nm_shift")
+        row.loss_years = q.get("loss_years")
+        if row.profit_med_yi is not None and row.profit_med_yi < 1:
+            row.profit_reliable = False
+            row.profit_note = "中位利润不足 1 亿，比率会被放大"
+        elif row.loss_years is not None and row.loss_years >= 3:
+            row.profit_reliable = False
+            row.profit_note = "10 年内亏损多年，中位不可靠"
+        elif row.earn_pos is not None and abs(row.earn_pos) > 5:
+            row.profit_reliable = False
+            row.profit_note = "盈利位置超过 5 倍，可能是基数问题"
         row.tag = _tag(row)
         out.append(row)
     return out

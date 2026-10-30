@@ -143,6 +143,8 @@ def render_html(rows: List[CycRow], as_of: str) -> str:
     for r in rows:
         cls = TAG_CLASS.get(r.tag, "t-mid")
         chain_html = html.escape(r.chain or "—") + (warn if r.stale else "")
+        pmark = "" if r.profit_reliable else warn
+        ptitle = "" if r.profit_reliable else r.profit_note
         body.append(
             f'<tr data-tag="{html.escape(r.tag)}" data-ind="{html.escape(r.industry)}" '
             f'data-key="{html.escape(r.code + r.name)}">'
@@ -155,8 +157,8 @@ def render_html(rows: List[CycRow], as_of: str) -> str:
             f'<td class="mono" data-v="{r.pe_pct if r.pe_pct is not None else ""}">{_fmt(r.pe_pct, 0)}</td>'
             f'<td class="mono" data-v="{r.pb if r.pb is not None else ""}">{_fmt(r.pb)}</td>'
             f'<td class="mono" data-v="{r.pb_pct if r.pb_pct is not None else ""}">{_fmt(r.pb_pct, 0)}</td>'
-            f'<td class="mono" data-v="{r.earn_pos if r.earn_pos is not None else ""}">{_fmt(r.earn_pos)}</td>'
-            f'<td class="mono" data-v="{r.norm_pe if r.norm_pe is not None else ""}">{_fmt(r.norm_pe)}</td>'
+            f'<td class="mono" title="{html.escape(ptitle)}" data-v="{r.earn_pos if r.earn_pos is not None else ""}">{_fmt(r.earn_pos)}{pmark}</td>'
+            f'<td class="mono" title="{html.escape(ptitle)}" data-v="{r.norm_pe if r.norm_pe is not None else ""}">{_fmt(r.norm_pe)}{pmark}</td>'
             f'<td class="mono" data-v="{r.dy if r.dy is not None else ""}">{_fmt(r.dy)}</td>'
             f'<td class="mono" data-v="{r.gross_margin if r.gross_margin is not None else ""}">{_fmt(r.gross_margin, 0)}</td>'
             f'<td class="mono" data-v="{r.net_margin_vol if r.net_margin_vol is not None else ""}">{_fmt(r.net_margin_vol, 1)}</td>'
@@ -205,6 +207,11 @@ def render_html(rows: List[CycRow], as_of: str) -> str:
     <b>链条</b>（上游资源 / 中游冶炼 / 下游加工 / 一体化）按主营业务原文关键词判定，
     把鼠标放在链条上能看到原文。<span class="warn">!</span> 表示描述与行业对不上，
     多半是借壳或重组后数据没更新（例如天山铝业的主营业务仍写着"泵及控制设备"）。<br>
+    <br>
+    <b style="color:#e8a33d">!</b> 跟在「盈利位置」或「正常化 PE」后面，表示这两个数不可信——
+    中位利润不足 1 亿（比率会被放大）、10 年内亏损 3 年以上（中位不可靠）、
+    或比率超过 5 倍（基数问题）。这类公司不声称「周期顶/底」，只按 PB 分位判断。
+    全市场约一半的周期股属于这种情况。<br>
     <br>
     <b>利润率变化</b> = 近 3 年净利率中位 − 全期中位（百分点）。
     大幅为正说明行业结构变了（比如电解铝 2017 年产能封顶后，5 家公司净利率中位抬升 2~16pp），
