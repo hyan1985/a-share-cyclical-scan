@@ -162,6 +162,7 @@ def render_html(rows: List[CycRow], as_of: str) -> str:
             f'<td class="mono" data-v="{r.net_margin_vol if r.net_margin_vol is not None else ""}">{_fmt(r.net_margin_vol, 1)}</td>'
             f'<td class="mono" data-v="{r.debt_ratio if r.debt_ratio is not None else ""}">{_fmt(r.debt_ratio, 0)}</td>'
             f'<td class="mono" data-v="{r.ocf_to_profit if r.ocf_to_profit is not None else ""}">{_fmt(r.ocf_to_profit)}</td>'
+            f'<td class="mono" data-v="{r.nm_shift if r.nm_shift is not None else ""}">{_fmt(r.nm_shift, 1)}</td>'
             f'<td class="mono" data-v="{r.market_cap_yi if r.market_cap_yi is not None else ""}">{_fmt(r.market_cap_yi, 0)}</td>'
             f'</tr>')
 
@@ -185,7 +186,7 @@ def render_html(rows: List[CycRow], as_of: str) -> str:
       <th>代码</th><th>名称</th><th>行业</th><th>链条</th><th>判断</th>
       <th>PE</th><th>PE分位</th><th>PB</th><th>PB分位</th>
       <th>盈利位置</th><th>正常化PE</th><th>股息率</th>
-      <th>毛利率</th><th>盈利波动</th><th>负债率</th><th>现金流</th>
+      <th>毛利率</th><th>盈利波动</th><th>负债率</th><th>现金流</th><th>利润率变化</th>
       <th>市值(亿)</th>
     </tr></thead>
     <tbody>{''.join(body)}</tbody>
@@ -204,6 +205,10 @@ def render_html(rows: List[CycRow], as_of: str) -> str:
     <b>链条</b>（上游资源 / 中游冶炼 / 下游加工 / 一体化）按主营业务原文关键词判定，
     把鼠标放在链条上能看到原文。<span class="warn">!</span> 表示描述与行业对不上，
     多半是借壳或重组后数据没更新（例如天山铝业的主营业务仍写着"泵及控制设备"）。<br>
+    <br>
+    <b>利润率变化</b> = 近 3 年净利率中位 − 全期中位（百分点）。
+    大幅为正说明行业结构变了（比如电解铝 2017 年产能封顶后，5 家公司净利率中位抬升 2~16pp），
+    此时「盈利位置」和「正常化 PE」会高估当前的周期顶部程度——因为拿 10 年中位（含低利润年份）当基准。<br>
     <br>
     <b>毛利率 / 盈利波动 / 负债率 / 现金流</b>：前两个用来分辨产业链位置——
     <b>高毛利率 + 高盈利波动 = 上游资源型</b>（利润跟着商品价格走）；

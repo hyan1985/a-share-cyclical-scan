@@ -57,6 +57,7 @@ class CycRow:
     net_margin_vol: Optional[float] = None
     debt_ratio: Optional[float] = None
     ocf_to_profit: Optional[float] = None
+    nm_shift: Optional[float] = None
     market_cap_yi: Optional[float] = None
     comparable: bool = True
     tag: str = ""
@@ -105,11 +106,15 @@ def _quality(fin: pd.DataFrame) -> dict:
             e = float(eps.iloc[-1])
             if e > 0.01:
                 ratio = round(float(ocf.iloc[-1]) / e, 2)
+        nm_shift = None
+        if len(nm) >= 4:
+            nm_shift = round(float(nm.tail(3).median()) - float(nm.median()), 1)
         q[code] = {
             "gm": round(float(gm.iloc[-1]), 1) if len(gm) else None,
             "nm_vol": round(float(nm.std()), 1) if len(nm) >= 4 else None,
             "debt": round(float(da.iloc[-1]), 1) if len(da) else None,
             "ocf": ratio,
+            "nm_shift": nm_shift,
         }
     return q
 
@@ -209,6 +214,7 @@ def scan(data: Optional[dict] = None, industries: Optional[set] = None,
         q = quality.get(code) or {}
         row.gross_margin, row.net_margin_vol = q.get("gm"), q.get("nm_vol")
         row.debt_ratio, row.ocf_to_profit = q.get("debt"), q.get("ocf")
+        row.nm_shift = q.get("nm_shift")
         row.tag = _tag(row)
         out.append(row)
     return out
