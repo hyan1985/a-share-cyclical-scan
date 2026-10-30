@@ -14,11 +14,13 @@ from typing import Optional
 import pandas as pd
 
 # 资源开采（最上游）
-RESOURCE = ("矿", "采矿", "开采", "勘探", "选矿", "原油", "采掘", "油气",
-            "煤炭", "林业", "种植", "养殖", "捕捞")
+# 只认「真的在挖」的动作，不认「油气」这种名词——
+# 「油气田地面工程服务」是给油气公司干活的承包商，不是资源公司。
+RESOURCE = ("采矿", "开采", "勘探", "选矿", "采掘", "原油", "天然气开采",
+            "煤炭开采", "煤炭生产", "林业", "种植", "养殖", "捕捞")
 # 冶炼/精炼（中上游）
-SMELTING = ("冶炼", "电解", "氧化铝", "精炼", "炼化", "焦化", "轧制", "铸造",
-            "烧结", "焙烧")
+SMELTING = ("冶炼", "电解", "氧化铝", "精炼", "炼化", "炼制", "焦化",
+            "轧制", "铸造", "烧结", "焙烧")
 # 加工制造（下游）
 PROCESSING = ("加工", "制品", "型材", "板带", "板材", "带材", "箔", "管材",
               "棒材", "制造", "组装", "零部件", "配件", "器件", "组件",
@@ -50,13 +52,19 @@ def classify(main_business: Optional[str]) -> str:
         return _TAG_BOTH
     if res:
         return _TAG_UP
+    # 服务优先于冶炼：中油工程有「炼化工程服务」，但它是承包商，不是炼厂。
+    if serv and not proc:
+        return _TAG_SERV
     if smelt and proc:
         return _TAG_BOTH
     if smelt:
         return _TAG_MID
-    if serv and not proc:
-        return _TAG_SERV
     if proc:
+        return _TAG_DOWN
+    # 兜底：只写「XX产品的生产与销售」的公司，归到下游制造。
+    # 再不归就要留一大片「其他」，比归错更没用——至少「制造业」这个
+    # 判断是成立的（它既不挖矿，也不做服务）。
+    if any(k in text for k in ("生产", "制造", "销售", "研发")):
         return _TAG_DOWN
     return _TAG_OTHER
 
