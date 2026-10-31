@@ -9,7 +9,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional
 
-import numpy as np
 import pandas as pd
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
@@ -48,25 +47,17 @@ class CycRow:
     pe_pct: Optional[float] = None
     pb: Optional[float] = None
     pb_pct: Optional[float] = None
+    hist_months: Optional[int] = None
     dy: Optional[float] = None
     profit_yi: Optional[float] = None
     profit_med_yi: Optional[float] = None
     earn_pos: Optional[float] = None
     norm_pe: Optional[float] = None
-    earn_pos_5y: Optional[float] = None
-    norm_pe_5y: Optional[float] = None
     years: Optional[int] = None
     gross_margin: Optional[float] = None
     net_margin_vol: Optional[float] = None
     debt_ratio: Optional[float] = None
     ocf_to_profit: Optional[float] = None
-    nm_shift: Optional[float] = None
-    loss_years: Optional[int] = None
-    profit_cv: Optional[float] = None
-    cv_vs_industry: Optional[float] = None
-    median_rel_se: Optional[float] = None
-    profit_reliable: bool = True
-    profit_note: str = ""
     market_cap_yi: Optional[float] = None
     comparable: bool = True
     tag: str = ""
@@ -89,8 +80,6 @@ def load_data(data_dir: Optional[Path] = None) -> dict:
         "panel": pd.read_parquet(d / "valuation_panel.parquet"),
         "snapshot": pd.read_parquet(d / "snapshot.parquet"),
         "financials": pd.read_parquet(d / "financials.parquet"),
-        "fina_quarterly": (pd.read_parquet(d / "fina_quarterly.parquet")
-                           if (d / "fina_quarterly.parquet").exists() else pd.DataFrame()),
         "company": pd.read_parquet(d / "company.parquet"),
     }
 
@@ -101,27 +90,6 @@ def cyclical_industries(snapshot: pd.DataFrame) -> set:
         if any(w in str(ind) for w in CYCLICAL_WORDS):
             out.add(str(ind))
     return out
-
-
-def ttm_profit(fin_q):
-    """按季报算滚动 12 个月扣非净利润（累计口径还原）。"""
-    if fin_q is None or fin_q.empty:
-        return pd.DataFrame()
-    d = fin_q.copy()
-    d["end_date"] = d["end_date"].astype(str)
-    d["profit_dedt"] = pd.to_numeric(d["profit_dedt"], errors="coerce")
-    d = d.dropna(subset=["profit_dedt"])
-    d["year"] = d["end_date"].str[:4].astype(int)
-    d["md"] = d["end_date"].str[4:]
-    ly = d[["ts_code", "end_date", "profit_dedt", "year", "md"]].copy()
-    ly["year"] = ly["year"] + 1
-    ps = ly.rename(columns={"profit_dedt": "p_same_prev"})
-    pf = ly[ly["md"] == "1231"].rename(columns={"profit_dedt": "p_fy_prev"})
-    m = d.merge(ps[["ts_code", "year", "md", "p_same_prev"]], on=["ts_code", "year", "md"], how="left")
-    m = m.merge(pf[["ts_code", "year", "p_fy_prev"]], on=["ts_code", "year"], how="left")
-    m["profit_dedt"] = np.where(m["md"] == "1231", m["profit_dedt"],
-                                m["profit_dedt"] + m["p_fy_prev"] - m["p_same_prev"])
-    return m.dropna(subset=["profit_dedt"])[["ts_code", "end_date", "profit_dedt"]]
 
 
 def _quality(fin: pd.DataFrame) -> dict:
@@ -138,22 +106,11 @@ def _quality(fin: pd.DataFrame) -> dict:
             e = float(eps.iloc[-1])
             if e > 0.01:
                 ratio = round(float(ocf.iloc[-1]) / e, 2)
-        _pf = pd.to_numeric(g["profit_dedt"], errors="coerce").dropna()
-        loss_years = int((_pf < 0).sum())
-        _med = float(_pf.median()) if len(_pf) else 0.0
-        _sd = float(_pf.std()) if len(_pf) >= 5 else None
-        profit_cv = round(_sd / abs(_med), 2) if (_sd is not None and abs(_med) > 0) else None
-        nm_shift = None
-        if len(nm) >= 4:
-            nm_shift = round(float(nm.tail(3).median()) - float(nm.median()), 1)
         q[code] = {
             "gm": round(float(gm.iloc[-1]), 1) if len(gm) else None,
             "nm_vol": round(float(nm.std()), 1) if len(nm) >= 4 else None,
             "debt": round(float(da.iloc[-1]), 1) if len(da) else None,
             "ocf": ratio,
-            "nm_shift": nm_shift,
-            "loss_years": loss_years,
-            "profit_cv": profit_cv,
         }
     return q
 
@@ -162,13 +119,13 @@ def _tag(r: CycRow) -> str:
     if not r.comparable:
         return TAG_NA
     if r.pb_pct is None:
+        if r.pb is not None and r.hist_months is not None and r.hist_months < 60:
+            return "历史不足5年"
         return TAG_LACK
     low_pb, high_pb = r.pb_pct <= 30, r.pb_pct >= 70
     pos = r.earn_pos
     high_earn = pos is not None and pos >= 1.5
     low_earn = pos is not None and pos <= 0.7
-    if not r.profit_reliable:
-        high_earn = low_earn = False
     if high_pb and high_earn:
         return TAG_TOP
     if low_pb and low_earn:
@@ -198,14 +155,10 @@ def scan(data: Optional[dict] = None, industries: Optional[set] = None,
     pe_panel = panel.pivot_table(index="trade_date", columns="ts_code", values="pe_ttm")
 
     # 盈利历史：用扣非净利润而不是 EPS（EPS 会被股本变动扭曲）
-    fin_q = data.get("fina_quarterly")
-    fh = ttm_profit(fin_q)
-    if fh is None or fh.empty:
-        fh = fin.dropna(subset=["profit_dedt"])
+    fh = fin.dropna(subset=["profit_dedt"])
     g = fh.sort_values("end_date").groupby("ts_code")
     p_med, p_last, p_n = (g["profit_dedt"].median(), g["profit_dedt"].last(),
                           g["profit_dedt"].count())
-    p_med5 = g["profit_dedt"].apply(lambda x: x.tail(20).median())
     quality = _quality(fin)
 
     co_map, biz = {}, {}
@@ -229,7 +182,8 @@ def scan(data: Optional[dict] = None, industries: Optional[set] = None,
         if code in pb_panel.columns:
             s = pb_panel[code].dropna()
             s = s[(s > 0) & (s < 50)]
-            if len(s) >= 24 and row.pb:
+            row.hist_months = len(s)
+            if len(s) >= 60 and row.pb:
                 row.pb_pct = round(percentile_of(s, row.pb) or 0, 0)
         if code in pe_panel.columns:
             s = pe_panel[code].dropna()
@@ -244,13 +198,6 @@ def scan(data: Optional[dict] = None, industries: Optional[set] = None,
             if med == med and med <= 0:
                 row.comparable = False
             elif med == med and row.market_cap_yi:
-                if code in p_med5.index:
-                    m5 = float(p_med5[code])
-                    if m5 == m5 and m5 > 0:
-                        row.norm_pe_5y = round(row.market_cap_yi * 1e8 / m5, 1)
-                        nl5 = float(p_last.get(code, float("nan")))
-                        if nl5 == nl5:
-                            row.earn_pos_5y = round(nl5 / m5, 2)
                 row.norm_pe = round(row.market_cap_yi * 1e8 / med, 1)
                 npl = float(p_last.get(code, float("nan")))
                 if npl == npl:
@@ -266,21 +213,6 @@ def scan(data: Optional[dict] = None, industries: Optional[set] = None,
         q = quality.get(code) or {}
         row.gross_margin, row.net_margin_vol = q.get("gm"), q.get("nm_vol")
         row.debt_ratio, row.ocf_to_profit = q.get("debt"), q.get("ocf")
-        row.nm_shift = q.get("nm_shift")
-        row.loss_years = q.get("loss_years")
-        row.profit_cv = q.get("profit_cv")
-        if row.profit_cv is not None and row.years:
-            row.median_rel_se = round(1.25 * row.profit_cv / (row.years ** 0.5), 2)
-        if row.median_rel_se is not None and row.median_rel_se > 0.6:
-            row.profit_reliable = False
-            row.profit_note = (f"中位数相对标准误 {row.median_rel_se:.0%}"
-                               f"（样本 {row.years} 年），中位不可靠")
-        elif row.loss_years is not None and row.loss_years >= 5:
-            row.profit_reliable = False
-            row.profit_note = f"十年里 {row.loss_years} 年扣非亏损，中位不可靠"
-        elif row.earn_pos is not None and abs(row.earn_pos) > 10:
-            row.profit_reliable = False
-            row.profit_note = "盈利位置超过 10 倍，基数失真"
         row.tag = _tag(row)
         out.append(row)
     return out
@@ -303,9 +235,9 @@ def summarize(rows: List[CycRow]) -> str:
 
 
 def format_table(rows: List[CycRow], limit: int = 40) -> str:
-    head = (f"{'代码':<11}{'名称':<9}{'行业':<7}{'链条':<7}{'判断':<18}"
-            f"{'PB':>6}{'PB分位':>7}{'盈利位置':>9}{'正常化PE':>9}"
-            f"{'PE':>7}{'PE分位':>7}{'毛利':>5}{'波动':>5}{'负债':>5}{'现金':>6}")
+    head = (f"{'代码':<11}{'名称':<9}{'行业':<7}{'链条':<7}"
+            f"{'PE':>7}{'PE分位':>7}{'PB':>6}{'PB分位':>7}"
+            f"{'盈利位置':>9}{'正常化PE':>9}{'毛利':>5}{'波动':>5}{'负债':>5}{'现金':>6}  判断")
     lines = [head, "-" * 122]
 
     def f(v, nd=2):
@@ -313,10 +245,9 @@ def format_table(rows: List[CycRow], limit: int = 40) -> str:
 
     for r in rows[:limit]:
         lines.append(
-            f"{r.code:<11}{r.name[:8]:<9}{r.industry[:6]:<7}"
-            f"{(r.chain or '-')[:6]:<7}{r.tag:<18}"
-            f"{f(r.pb):>6}{f(r.pb_pct, 0):>7}{f(r.earn_pos):>9}{f(r.norm_pe):>9}"
-            f"{f(r.pe):>7}{f(r.pe_pct, 0):>7}"
+            f"{r.code:<11}{r.name[:8]:<9}{r.industry[:6]:<7}{r.chain[:6]:<7}"
+            f"{f(r.pe):>7}{f(r.pe_pct, 0):>7}{f(r.pb):>6}{f(r.pb_pct, 0):>7}"
+            f"{f(r.earn_pos):>9}{f(r.norm_pe):>9}"
             f"{f(r.gross_margin, 0):>5}{f(r.net_margin_vol, 1):>5}"
-            f"{f(r.debt_ratio, 0):>5}{f(r.ocf_to_profit):>6}")
+            f"{f(r.debt_ratio, 0):>5}{f(r.ocf_to_profit):>6}  {r.tag}")
     return "\n".join(lines)
