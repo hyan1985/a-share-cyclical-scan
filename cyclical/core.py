@@ -42,6 +42,8 @@ class CycRow:
     chain: str = ""
     main_business: str = ""
     stale: bool = False
+    industry_unsuitable: bool = False
+    industry_noanswer: Optional[int] = None
     price: Optional[float] = None
     pe: Optional[float] = None
     pe_pct: Optional[float] = None
@@ -59,6 +61,15 @@ class CycRow:
     debt_ratio: Optional[float] = None
     ocf_to_profit: Optional[float] = None
     market_cap_yi: Optional[float] = None
+    profit_reliable: bool = True
+    profit_note: str = ""
+    profit_cv: Optional[float] = None
+    median_rel_se: Optional[float] = None
+    loss_years: Optional[int] = None
+    nm_shift: Optional[float] = None
+    cv_vs_industry: Optional[float] = None
+    earn_pos_5y: Optional[float] = None
+    norm_pe_5y: Optional[float] = None
     comparable: bool = True
     tag: str = ""
 
@@ -130,15 +141,16 @@ def _tag(r: CycRow) -> str:
         return TAG_TOP
     if low_pb and low_earn:
         return TAG_BOTTOM
+    suffix = "" if r.profit_reliable else "·盈利存疑"
     if low_pb:
-        return TAG_CHEAP
+        return TAG_CHEAP + suffix
     if high_pb:
-        return TAG_RICH
-    return TAG_MID
+        return TAG_RICH + suffix
+    return TAG_MID + suffix
 
 
 def scan(data: Optional[dict] = None, industries: Optional[set] = None,
-         min_cap_yi: float = 50.0) -> List[CycRow]:
+         min_cap_yi: float = 50.0, include_unsuitable: bool = False) -> List[CycRow]:
     data = data or load_data()
     snap, panel, fin, co = (data["snapshot"], data["panel"],
                             data["financials"], data["company"])
@@ -210,11 +222,43 @@ def scan(data: Optional[dict] = None, industries: Optional[set] = None,
         if row.main_business:
             from .company import looks_stale
             row.stale = looks_stale(row.main_business, row.industry)
+        # 盈利可靠性：CV 与亏损年数从 TTM 序列算
+        if code in p_med.index:
+            _sub = fh[fh.ts_code == code].sort_values("end_date")["profit_dedt"]
+            _m = float(p_med[code])
+            if len(_sub) >= 5 and _m > 0:
+                row.profit_cv = round(float(_sub.std()) / abs(_m), 2)
+            row.loss_years = int((_sub < 0).sum())
+            if row.profit_cv is not None and row.years:
+                row.median_rel_se = round(1.25 * row.profit_cv / (row.years ** 0.5), 2)
+        if row.median_rel_se is not None and row.median_rel_se > 0.6:
+            row.profit_reliable = False
+            row.profit_note = f"中位数相对标准误 {row.median_rel_se:.0%}（样本 {row.years} 年）"
+        elif row.loss_years is not None and row.loss_years >= 5:
+            row.profit_reliable = False
+            row.profit_note = f"十年里 {row.loss_years} 年扣非亏损"
+        elif row.earn_pos is not None and abs(row.earn_pos) > 10:
+            row.profit_reliable = False
+            row.profit_note = "盈利位置超过 10 倍，基数失真"
+
         q = quality.get(code) or {}
         row.gross_margin, row.net_margin_vol = q.get("gm"), q.get("nm_vol")
         row.debt_ratio, row.ocf_to_profit = q.get("debt"), q.get("ocf")
         row.tag = _tag(row)
         out.append(row)
+    NO_ANSWER = {"历史不足5年", "历史不可比", "数据不足"}
+    by_ind = {}
+    for r in out:
+        by_ind.setdefault(r.industry, []).append(r.tag in NO_ANSWER)
+    ind_rate = {k: sum(v) / len(v) for k, v in by_ind.items() if len(v) >= 8}
+    for r in out:
+        rate = ind_rate.get(r.industry)
+        if rate is not None and rate >= 0.5:
+            r.industry_unsuitable = True
+            r.industry_noanswer = round(rate * 100)
+
+    if not include_unsuitable:
+        out = [r for r in out if not r.industry_unsuitable]
     return out
 
 
