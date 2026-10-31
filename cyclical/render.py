@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import html
-from typing import List
+from typing import List, Optional
 
 from .core import CycRow
 
@@ -15,6 +15,9 @@ TAG_CLASS = {
     "历史不可比": "t-na",
     "数据不足": "t-na",
     "历史不足5年": "t-na",
+    "PB 便宜·盈利存疑": "t-cheap2",
+    "PB 偏贵·盈利存疑": "t-rich2",
+    "中性·盈利存疑": "t-mid2",
 }
 
 CSS = """
@@ -63,7 +66,12 @@ td.mono{font-variant-numeric:tabular-nums}
 .t-rich{background:rgba(217,83,79,.10);color:#d4736f}
 .t-mid{background:rgba(139,147,167,.14);color:#9aa2b4}
 .t-na{background:rgba(139,147,167,.08);color:#6e7686}
+.t-cheap2{background:rgba(78,163,107,.07);color:#4d8a61;border:1px dashed rgba(78,163,107,.35)}
+.t-rich2{background:rgba(217,83,79,.07);color:#b96a67;border:1px dashed rgba(217,83,79,.35)}
+.t-mid2{background:rgba(139,147,167,.08);color:#7b8396;border:1px dashed rgba(139,147,167,.3)}
 .empty{padding:40px;text-align:center;color:var(--muted)}
+.unsuit{margin:0 0 16px;padding:11px 15px;border-radius:8px;font-size:12.5px;
+background:rgba(232,163,61,.08);border:1px solid rgba(232,163,61,.28);color:#c9a25e;line-height:1.8}
 .note{margin-top:22px;padding:16px 18px;background:var(--card);border-radius:10px;
 border:1px solid var(--line);color:var(--muted);font-size:12.5px;line-height:1.9}
 .note b{color:var(--text)}
@@ -126,7 +134,8 @@ def _fmt(v, nd=2):
     return f"{v:.{nd}f}" if isinstance(v, (int, float)) else "—"
 
 
-def render_html(rows: List[CycRow], as_of: str) -> str:
+def render_html(rows: List[CycRow], as_of: str,
+                excluded: Optional[list] = None) -> str:
     from collections import Counter
 
     cnt = Counter(r.tag for r in rows)
@@ -190,6 +199,17 @@ def render_html(rows: List[CycRow], as_of: str) -> str:
             f'<td class="mono" data-v="{r.market_cap_yi if r.market_cap_yi is not None else ""}">{_fmt(r.market_cap_yi, 0)}</td>'
             f'</tr>')
 
+    uns = excluded if excluded is not None else sorted(
+        {(r.industry, r.industry_noanswer) for r in rows if r.industry_unsuitable})
+    unsuitable_note = ""
+    if uns:
+        items = "、".join(f"{i}（{p}% 无法判断）" for i, p in uns)
+        unsuitable_note = (f'<div class="unsuit">已剔除不适用行业：{items}'
+                           f'<br>这些行业的绝大多数标的连基础判断都做不了，'
+                           f'不是「没有机会」，是「这套方法对它不成立」。</div>')
+    else:
+        unsuitable_note = ""
+
     return f"""<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8">
 <title>周期行业扫描 · {as_of}</title><style>{CSS}</style></head>
@@ -206,6 +226,7 @@ def render_html(rows: List[CycRow], as_of: str) -> str:
     <span class="count" id="cnt"></span>
   </div>
   <div class="summary">{''.join(chips)}</div>
+  {unsuitable_note}
   <table>
     <thead><tr>
       <th>代码</th><th>名称</th><th>行业</th><th>链条</th><th>判断</th>
