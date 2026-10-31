@@ -22,7 +22,9 @@ def main(argv=None):
 
     data = load_data()
     inds = set(args.industry.split(",")) if args.industry else None
-    rows = sort_rows(scan(data, industries=inds, min_cap_yi=args.min_cap), args.sort)
+    all_rows = scan(data, industries=inds, min_cap_yi=args.min_cap, include_unsuitable=True)
+    excluded = sorted({(r.industry, r.industry_noanswer) for r in all_rows if r.industry_unsuitable})
+    rows = sort_rows([r for r in all_rows if not r.industry_unsuitable], args.sort)
     if not rows:
         print("没有符合条件的股票")
         return 1
@@ -38,7 +40,7 @@ def main(argv=None):
         out = Path(args.html)
         out.parent.mkdir(parents=True, exist_ok=True)
         as_of = str(data["panel"]["trade_date"].max())
-        out.write_text(render_html(rows, as_of), encoding="utf-8")
+        out.write_text(render_html(rows, as_of, excluded=excluded), encoding="utf-8")
         print(f"\n已生成面板 {out}")
     if args.csv:
         import pandas as pd
