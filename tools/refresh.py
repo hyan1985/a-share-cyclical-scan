@@ -32,11 +32,19 @@ def _pro(token: str):
 
 
 def _latest_trade_date(pro) -> str:
-    cal = pro.trade_cal(exchange="SSE", is_open="1",
-                        start_date=pd.Timestamp.now().strftime("%Y%m%d"))
-    cal = cal[cal["cal_date"] <= pd.Timestamp.now().strftime("%Y%m%d")]
-    if cal.empty:
+    """最近一个已结束的交易日。
+
+    起点要往前推 10 天：如果从「今天」开始查，遇到周末或节假日会返回
+    全是指向未来的日期，过滤后为空（周六跑 workflow 就是这么挂的）。
+    """
+    today = pd.Timestamp.now().strftime("%Y%m%d")
+    start = (pd.Timestamp.now() - pd.Timedelta(days=10)).strftime("%Y%m%d")
+    cal = pro.trade_cal(exchange="SSE", is_open="1", start_date=start, end_date=today)
+    if cal is None or cal.empty:
         raise SystemExit("拿不到交易日历")
+    cal = cal[cal["cal_date"].astype(str) <= today]
+    if cal.empty:
+        raise SystemExit("最近 10 天没有交易日")
     return str(cal["cal_date"].max())
 
 
