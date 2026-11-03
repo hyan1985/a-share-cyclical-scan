@@ -295,3 +295,5 @@ def format_table(rows: List[CycRow], limit: int = 40) -> str:
             f"{f(r.gross_margin, 0):>5}{f(r.net_margin_vol, 1):>5}"
             f"{f(r.debt_ratio, 0):>5}{f(r.ocf_to_profit):>6}  {r.tag}")
     return "\n".join(lines)
+
+# 依赖说明：tushare.trader 需要 six，requirements.txt 已显式声明。
