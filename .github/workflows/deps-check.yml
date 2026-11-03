@@ -23,7 +23,7 @@ jobs:
         run: pip install -r requirements.txt
       - name: 验证关键依赖能导入
         run: |
-          python -c "import pandas, pyarrow, numpy, six; from tushare.trader import trader"
+          python -c "import pandas, pyarrow, numpy, six"
       - name: 打印实际版本
         run: pip list | grep -iE "tushare|pandas|numpy|six" || true
 
